@@ -1,236 +1,81 @@
 ﻿using System.Diagnostics;
 using Silk.NET.SDL;
+using TheAdventure;
 
-namespace TheAdventure;
+using GameSdlContext = TheAdventure.SdlContext;
 
-public static class Program
+var sdl = new Sdl(new GameSdlContext());
+var timer = new Stopwatch();
+
+var sdlInitResult = sdl.Init(Sdl.InitVideo | Sdl.InitAudio | Sdl.InitEvents | Sdl.InitTimer |
+                              Sdl.InitGamecontroller | Sdl.InitJoystick);
+if (sdlInitResult < 0)
+    throw new InvalidOperationException("Failed to initialize SDL.");
+
+IntPtr window;
+unsafe
 {
-    public static void Main()
+    window = (IntPtr)sdl.CreateWindow(
+        "The Adventure - Dungeon Diver",
+        Sdl.WindowposUndefined, Sdl.WindowposUndefined,
+        800, 520,
+        (uint)WindowFlags.Resizable | (uint)WindowFlags.AllowHighdpi
+    );
+    if (window == IntPtr.Zero) throw sdl.GetErrorAsException() ?? new Exception("Failed to create window.");
+}
+
+IntPtr renderer;
+unsafe
+{
+    renderer = (IntPtr)sdl.CreateRenderer((Window*)window, -1, (uint)RendererFlags.Accelerated);
+    sdl.RenderSetVSync((Renderer*)renderer, 1);
+    if (renderer == IntPtr.Zero) throw sdl.GetErrorAsException() ?? new Exception("Failed to create renderer.");
+}
+
+var game = new Game();
+var ev = new Event();
+bool quit = false;
+
+Console.WriteLine("=== THE ADVENTURE: DUNGEON DIVER ===");
+Console.WriteLine("WASD / Arrow keys: Move   SPACE/Enter: Attack   .: Wait   ESC: Quit");
+Console.WriteLine("Find the KEY then reach the STAIRS. Defeat the Dragon Boss on floor 3!");
+
+while (!quit)
+{
+    while (sdl.PollEvent(ref ev) != 0)
     {
-        var sdl = new Sdl(new SdlContext());
+        if (ev.Type == (uint)EventType.Quit) { quit = true; break; }
 
-        UInt64 framesRenderedCounter = 0;
-        var timer = new Stopwatch();
-
-        ReadOnlySpan<byte> keyboardState;
-        unsafe
+        switch (ev.Type)
         {
-            keyboardState = new(sdl.GetKeyboardState(null), (int)KeyCode.Count);
+            case (uint)EventType.Windowevent:
+                if (ev.Window.Event == (byte)WindowEventID.TakeFocus)
+                    unsafe { sdl.SetWindowInputFocus(sdl.GetWindowFromID(ev.Window.WindowID)); }
+                break;
+
+            case (uint)EventType.Keydown:
+                game.HandleKeyDown((int)ev.Key.Keysym.Scancode);
+                break;
+
+            case (uint)EventType.Keyup:
+                game.HandleKeyUp((int)ev.Key.Keysym.Scancode);
+                break;
         }
+    }
 
-        Span<byte> mouseButtonStates = stackalloc byte[(int)MouseButton.Count];
+    quit |= game.Update();
+    timer.Restart();
 
-        var ev = new Event();
-
-        var sdlInitResult = sdl.Init(Sdl.InitVideo | Sdl.InitAudio | Sdl.InitEvents | Sdl.InitTimer | Sdl.InitGamecontroller |
-                                     Sdl.InitJoystick);
-        if (sdlInitResult < 0)
-        {
-            throw new InvalidOperationException("Failed to initialize SDL.");
-        }
-
-        IntPtr window;
-        unsafe
-        {
-            window = (IntPtr)sdl.CreateWindow(
-                "The Adventure", Sdl.WindowposUndefined, Sdl.WindowposUndefined, 800, 800,
-                (uint)WindowFlags.Resizable | (uint)WindowFlags.AllowHighdpi
-            );
-
-            if (window == IntPtr.Zero)
-            {
-                var ex = sdl.GetErrorAsException();
-                if (ex != null)
-                {
-                    throw ex;
-                }
-
-                throw new Exception("Failed to create window.");
-            }
-        }
-
-        IntPtr renderer;
-        unsafe
-        {
-            renderer = (IntPtr)sdl.CreateRenderer((Window*)window, -1, (uint)RendererFlags.Accelerated);
-            sdl.RenderSetVSync((Renderer*)renderer, 1);
-        }
-
-        if (renderer == IntPtr.Zero)
-        {
-            var ex = sdl.GetErrorAsException();
-            if (ex != null)
-            {
-                throw ex;
-            }
-
-            throw new Exception("Failed to create renderer.");
-        }
-
-        var startX = 100;
-        var startY = 100;
-        var endX = 200;
-        var endY = 200;
-
-        bool quit = false;
-        while (!quit)
-        {
-            while (sdl.PollEvent(ref ev) != 0)
-            {
-                if (ev.Type == (uint)EventType.Quit)
-                {
-                    quit = true;
-                    break;
-                }
-
-                switch (ev.Type)
-                {
-                    case (uint)EventType.Windowevent:
-                    {
-                        switch (ev.Window.Event)
-                        {
-                            case (byte)WindowEventID.Shown:
-                            case (byte)WindowEventID.Exposed:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.Hidden:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.Moved:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.SizeChanged:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.Minimized:
-                            case (byte)WindowEventID.Maximized:
-                            case (byte)WindowEventID.Restored:
-                                break;
-                            case (byte)WindowEventID.Enter:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.Leave:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.FocusGained:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.FocusLost:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.Close:
-                            {
-                                break;
-                            }
-                            case (byte)WindowEventID.TakeFocus:
-                            {
-                                unsafe
-                                {
-                                    sdl.SetWindowInputFocus(sdl.GetWindowFromID(ev.Window.WindowID));
-                                }
-
-                                break;
-                            }
-                        }
-
-                        break;
-                    }
-
-                    case (uint)EventType.Fingermotion:
-                    {
-                        break;
-                    }
-
-                    case (uint)EventType.Mousemotion:
-                    {
-                        if (keyboardState[(byte)KeyCode.LShift] > 0)
-                        {
-                            endX = ev.Motion.X;
-                            endY = ev.Motion.Y;
-                        }
-                        else
-                        {
-                            startX = ev.Motion.X;
-                            startY = ev.Motion.Y;
-                        }
-
-                        break;
-                    }
-
-                    case (uint)EventType.Fingerdown:
-                    {
-                        mouseButtonStates[(byte)MouseButton.Primary] = 1;
-                        break;
-                    }
-                    case (uint)EventType.Mousebuttondown:
-                    {
-                        mouseButtonStates[ev.Button.Button] = 1;
-                        break;
-                    }
-
-                    case (uint)EventType.Fingerup:
-                    {
-                        mouseButtonStates[(byte)MouseButton.Primary] = 0;
-                        break;
-                    }
-
-                    case (uint)EventType.Mousebuttonup:
-                    {
-                        mouseButtonStates[ev.Button.Button] = 0;
-                        break;
-                    }
-
-                    case (uint)EventType.Mousewheel:
-                    {
-                        break;
-                    }
-
-                    case (uint)EventType.Keyup:
-                    {
-                        break;
-                    }
-
-                    case (uint)EventType.Keydown:
-                    {
-                        Console.WriteLine($"Key down: {(KeyCode)ev.Key.Keysym.Scancode}");
-                        break;
-                    }
-                }
-            }
-
-            var elapsed = timer.Elapsed;
-            timer.Restart();
-
-            // game.render(renderer, RenderEvent{ elapsed, framesRenderedCounter++ });
-            unsafe
-            {
-                var r = (Renderer *)renderer;
-
-                sdl.SetRenderDrawColor(r, 255, 255, 255, 255);
-                sdl.RenderClear(r);
-
-                sdl.SetRenderDrawColor(r, 255, 0, 0, 255);
-                sdl.RenderDrawLine(r, startX, startY, endX, endY);
-
-                sdl.RenderPresent(r);
-            }
-
-            ++framesRenderedCounter;
-        }
-
-        unsafe
-        {
-            sdl.DestroyWindow((Window*)window);
-        }
-
-        sdl.Quit();
+    unsafe
+    {
+        var r = (Renderer*)renderer;
+        sdl.SetRenderDrawColor(r, 15, 15, 20, 255);
+        sdl.RenderClear(r);
+        game.Render(r, sdl);
+        sdl.RenderPresent(r);
     }
 }
+
+game.Dispose();
+unsafe { sdl.DestroyWindow((Window*)window); }
+sdl.Quit();
